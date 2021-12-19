@@ -15,10 +15,9 @@ import face_recognition
 import os
 import yagmail
 from datetime import datetime
-
+import time
 # step1
-
-# importing image
+# importing images
 path = "images"
 images = []
 classNames= []
@@ -26,15 +25,21 @@ myList = os.listdir(path)
 print(myList)
 for cl in myList:
     curImg =  cv2.imread(f'{path}/{cl}')
+    # appending images
     images.append(curImg)
-    classNames.append(os.path.splitext(cl)[0])
+    # appending classNames
+    name = os.path.splitext(cl)[0].split()
+    # print(name[0])
+    classNames.append(name[0])
 print(classNames)
 
 
 
 # initializing yagmail
 yag = yagmail.SMTP('attendancesystem1010', 'attendance1010')
-# find encodings of known images
+
+
+# find encodings of known images after converting them to rgb
 def findEncodings(images):
     encodings = []
     for img in images:
@@ -42,6 +47,7 @@ def findEncodings(images):
         encode = face_recognition.face_encodings(img)[0]
         encodings.append(encode)
     return encodings
+
 
 # marking present after detection
 def markPresent(name):
@@ -58,6 +64,7 @@ def markPresent(name):
             dateTimeString =  now.strftime('%H:%M:%S') #hour:min:secs
             f.writelines(f'\n{name},{dateTimeString}')
 
+# getting email from name
 def getEmail(name):
     with open('email.csv','r+') as f:
         myDataList = f.readlines()
@@ -67,11 +74,6 @@ def getEmail(name):
                 email = entry[1]
                 print("email =",email)
                 return email
-
-
-
-
-
 
 encodeListKnown =  findEncodings(images)
 
@@ -83,53 +85,85 @@ encodeListKnown =  findEncodings(images)
 # if using webcam
 vid = cv2.VideoCapture(0)
 
+# used to record the time when we processed last frame
+prev_frame_time = 0
+
+# used to record the time at which we processed current frame
+new_frame_time = 0
+
+# creating an array of recognized faces
+recognised_faces_names = []
+
 while True:
     ret,frame = vid.read()
     smallImg =  cv2.resize(frame,(0,0),None,0.25,0.25)
     smallImg = cv2.cvtColor(smallImg,cv2.COLOR_BGR2RGB)
 
+    # step2
+    # finding the faces in our image
     facesLocation = face_recognition.face_locations(smallImg)
+    # finding their encodings
     encodingsOfCurrFrame = face_recognition.face_encodings(smallImg,facesLocation)
 
+    # time when we finish processing for this frame
+    new_frame_time = time.time()
+
+    # Calculating the fps
+
+    # fps = number of frame processed in given time frame
+    fps = 1 / (new_frame_time - prev_frame_time)
+    prev_frame_time = new_frame_time
+
+    # step3
+    # comparing these faces and finding the distance between them
+    # comparing the encodings i.e 128 measurements of both the faces (by using linear SVM at the backend)
     for encodeFace,faceLocation in zip(encodingsOfCurrFrame,facesLocation):
         results = face_recognition.compare_faces(encodeListKnown,encodeFace)
         faceDistance =  face_recognition.face_distance(encodeListKnown,encodeFace)
-        # print(faceDistance)
+
+        # getting the index of the image that has lowest faceDistance value
+        # the lower the distance the better the match is
         indexMatched =  np.argmin(faceDistance)
 
 
+        y1, x1, y2, x2 = faceLocation
+        y1, x1, y2, x2 = y1 * 4, x1 * 4, y2 * 4, x2 * 4
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        cv2.rectangle(frame, (x1, y1 - 5), (x2, y1 - 35), (0, 255, 0), cv2.FILLED)
 
+        # font  to display FPS
+        font = cv2.FONT_HERSHEY_SIMPLEX
+
+
+        # if face matches
         if results[indexMatched]:
             name = classNames[indexMatched].upper()
-            y1, x1, y2, x2 = faceLocation
-            y1, x1, y2, x2 = y1 * 4, x1 * 4, y2 * 4, x2 * 4
-            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            cv2.rectangle(frame, (x1, y1 - 5), (x2, y1 - 35), (0, 255, 0), cv2.FILLED)
-            cv2.putText(frame, name, (x2 + 10, y1 - 8), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 1)
-            # marking attendance
-            markPresent(name)
-            # sending email
-            # "This is the body, and here is just text http://somedomain/image.png",
-            #  "You can find an audio file attached.", '/local/path/to/song.mp3'
-            contents = [
-                name+ " you were marked present today"
-            ]
-            yag.send(getEmail(name), 'Attendance', contents)
-            print('sent')
+            # print("face distance = ",faceDistance[indexMatched],"%")
+            recognised_faces_names.append(name)
+            # converting the fps into integer and then string
+            fps = int(fps)
+            fps = str(fps)
+            cv2.putText(frame,name, (x2 + 10, y1 - 8), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 1)
 
 
     cv2.imshow('frame', frame)
-
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
+
+def my_function(x):
+  return list(dict.fromkeys(x))
+
+recognised_faces_names = my_function(recognised_faces_names)
+print(recognised_faces_names)
+
+# marking attendance and sending email
+for name in recognised_faces_names:
+    markPresent(name)
+    contents = [name+ " you were marked present today"]
+    yag.send(getEmail(name), 'Attendance', contents)
+
 
 # After the loop release the cap object
 vid.release()
 # Destroy all the windows
 cv2.destroyAllWindows()
-
-
-
-
-
-
