@@ -1,7 +1,6 @@
 import tkinter as tk
 from tkinter import *
 from tkinter import filedialog
-from PIL import ImageTk, Image
 import shutil
 
 
@@ -33,7 +32,7 @@ path = "images"
 images = []
 classNames= []
 myList = os.listdir(path)
-print(myList)
+# print(myList)
 for cl in myList:
     curImg =  cv2.imread(f'{path}/{cl}')
     # appending images
@@ -42,7 +41,7 @@ for cl in myList:
     name = os.path.splitext(cl)[0].split()
     # print(name[0])
     classNames.append(name[0])
-print(classNames)
+# print(classNames)
 
 
 
@@ -65,7 +64,7 @@ def markPresent(name):
     with open('attendance.csv','r+') as f:
         #creating list
         myDataList = f.readlines()
-        print(myDataList)
+        # print(myDataList)
         nameList = []
         for line in myDataList:
             entry =  line.split(',') #spliting lines based on comma
@@ -83,7 +82,7 @@ def getEmail(name):
             entry = line.split(',')
             if name == entry[0]:
                 email = entry[1]
-                print("email =",email)
+                # print("email =",email)
                 return email
 
 
@@ -119,6 +118,7 @@ def Program():
 
         # step2
         # finding the faces in our image
+        # finding faces location
         facesLocation = face_recognition.face_locations(smallImg)
         # finding their encodings
         encodingsOfCurrFrame = face_recognition.face_encodings(smallImg, facesLocation)
@@ -156,9 +156,6 @@ def Program():
                 name = classNames[indexMatched].upper()
                 # print("face distance = ",faceDistance[indexMatched],"%")
                 recognised_faces_names.append(name)
-                # converting the fps into integer and then string
-                fps = int(fps)
-                fps = str(fps)
                 cv2.putText(frame, name, (x2 + 10, y1 - 8), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 1)
 
         cv2.imshow('frame', frame)
@@ -167,7 +164,7 @@ def Program():
             break
 
     recognised_faces_names = my_function(recognised_faces_names)
-    print(recognised_faces_names)
+    # print(recognised_faces_names)
 
     # marking attendance and sending email
     for name in recognised_faces_names:
@@ -183,13 +180,6 @@ def Program():
 
 
 # Code*************************************************
-
-
-
-
-
-
-
 
 
 
